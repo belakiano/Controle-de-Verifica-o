@@ -407,14 +407,7 @@
             document.getElementById('profile-view').classList.add('hidden');
             document.getElementById('dashboard-view').classList.remove('hidden');
             
-            const membersGrid = document.getElementById('members-grid');
-            membersGrid.innerHTML = ''; 
-            document.getElementById('loader').style.display = 'flex';
-            
             getMembers();
-            
-            if (membersSubscription) { membersSubscription.unsubscribe(); }
-            membersSubscription = db.channel('public:members').on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => getMembers()).subscribe();
         }
 
         function showProfileView() {
@@ -629,7 +622,15 @@
             const { data: { session } } = await db.auth.getSession();
             await setupAuthUI(session);
             showDashboard();
-            document.getElementById('home-button').addEventListener('click', () => showDashboard());
+            
+            if (membersSubscription) { membersSubscription.unsubscribe(); }
+            membersSubscription = db.channel('public:members')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, payload => {
+                    if (document.getElementById('profile-view').classList.contains('hidden')) {
+                        getMembers();
+                    }
+                })
+                .subscribe();
         }
 
         initializeApp();
