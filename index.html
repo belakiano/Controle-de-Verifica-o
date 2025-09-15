@@ -54,7 +54,7 @@
 <body class="text-gray-200">
 
     <!-- Container Principal -->
-    <div id="app" class="min-h-screen">
+    <div id="app" class="min-h-screen flex flex-col">
         <header class="sticky top-0 z-20 p-4 shadow-lg glassmorphism">
             <div class="container flex items-center justify-between mx-auto">
                 <div id="home-button" class="flex items-center gap-3 cursor-pointer">
@@ -65,7 +65,7 @@
             </div>
         </header>
 
-        <main class="container p-4 mx-auto md:p-6">
+        <main class="container p-4 mx-auto md:p-6 flex-grow">
             <!-- Visão do Dashboard -->
             <div id="dashboard-view">
                 <div class="flex flex-col items-center justify-between gap-4 mb-6 md:flex-row">
@@ -88,6 +88,10 @@
             <!-- Visão do Perfil -->
             <div id="profile-view" class="hidden"></div>
         </main>
+        
+        <footer class="text-center p-4 text-gray-500 text-sm">
+            Desenvolvido por kaleb
+        </footer>
     </div>
     
     <!-- Modais -->
@@ -402,6 +406,11 @@
             if(postsSubscription) { postsSubscription.unsubscribe(); postsSubscription = null; }
             document.getElementById('profile-view').classList.add('hidden');
             document.getElementById('dashboard-view').classList.remove('hidden');
+            
+            const membersGrid = document.getElementById('members-grid');
+            membersGrid.innerHTML = ''; // Limpa a grade para evitar que dados antigos apareçam
+            document.getElementById('loader').style.display = 'flex'; // Mostra o loader
+            
             getMembers();
             
             if (membersSubscription) { membersSubscription.unsubscribe(); }
@@ -467,19 +476,18 @@
             if(imageUrl) memberData.image_url = imageUrl;
 
             let error, memberId = id;
-            if (id) {
+            if (id) { // Edição
                 ({ error } = await db.from('members').update(memberData).eq('id', id));
-            } else {
+                if (error) return console.error("Erro ao salvar integrante:", error.message);
+                memberModal.classList.add('hidden');
+                if (document.getElementById('dashboard-view').classList.contains('hidden')) {
+                    renderProfile(memberId);
+                }
+            } else { // Adição
                 const { data, error: insertError } = await db.from('members').insert(memberData).select().single();
-                error = insertError;
-                if(data) memberId = data.id;
-            }
-
-            if(error) return console.error("Erro ao salvar integrante:", error.message);
-            
-            memberModal.classList.add('hidden');
-            if (document.getElementById('dashboard-view').classList.contains('hidden')) {
-                renderProfile(memberId);
+                if (insertError) return console.error("Erro ao salvar integrante:", insertError.message);
+                memberModal.classList.add('hidden');
+                showDashboard(); // Volta para o dashboard após adicionar
             }
         });
 
@@ -488,8 +496,21 @@
                 `Deseja realmente excluir ${memberName}?`,
                 "Todos os posts e dados associados serão perdidos permanentemente.",
                 async () => {
-                    await db.from('members').delete().eq('id', memberId);
-                    showDashboard();
+                    const { data: memberToDelete } = await db.from('members').select('image_url').eq('id', memberId).single();
+
+                    const { error: deleteError } = await db.from('members').delete().eq('id', memberId);
+                    if (deleteError) return console.error("Erro ao excluir membro:", deleteError.message);
+
+                    if (memberToDelete && memberToDelete.image_url) {
+                        try {
+                            const pathToDelete = memberToDelete.image_url.split('/avatars/')[1];
+                            if(pathToDelete) await db.storage.from('avatars').remove([pathToDelete]);
+                        } catch(e) { console.error("Não foi possível remover imagem do storage:", e.message); }
+                    }
+                    
+                    if (!document.getElementById('profile-view').classList.contains('hidden')) {
+                        showDashboard();
+                    }
                 }
             );
         }
@@ -563,14 +584,11 @@
                 postData.previous_rank = document.getElementById('post-previous-rank').value;
                 postData.new_rank = newRank;
 
-                const { error: postError } = await db.from('posts').insert(postData);
-                if (postError) return console.error("Erro ao criar postagem:", postError.message);
+                await db.from('posts').insert(postData);
+                await db.from('members').update({ rank: newRank }).eq('id', memberId);
 
-                const { error: memberError } = await db.from('members').update({ rank: newRank }).eq('id', memberId);
-                if (memberError) return console.error("Erro ao atualizar cargo do integrante:", memberError.message);
             } else {
-                const { error } = await db.from('posts').insert(postData);
-                if (error) return console.error("Erro ao criar postagem:", error.message);
+                await db.from('posts').insert(postData);
             }
             
             postModal.classList.add('hidden');
