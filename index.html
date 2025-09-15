@@ -406,7 +406,6 @@
             if(postsSubscription) { postsSubscription.unsubscribe(); postsSubscription = null; }
             document.getElementById('profile-view').classList.add('hidden');
             document.getElementById('dashboard-view').classList.remove('hidden');
-            
             getMembers();
         }
 
@@ -490,15 +489,19 @@
                 "Todos os posts e dados associados serão perdidos permanentemente.",
                 async () => {
                     const { data: memberToDelete } = await db.from('members').select('image_url').eq('id', memberId).single();
-
+                    
                     const { error: deleteError } = await db.from('members').delete().eq('id', memberId);
                     if (deleteError) return console.error("Erro ao excluir membro:", deleteError.message);
 
                     if (memberToDelete && memberToDelete.image_url) {
                         try {
-                            const pathToDelete = new URL(memberToDelete.image_url).pathname.split('/public/avatars/')[1];
-                            if(pathToDelete) await db.storage.from('avatars').remove([`public/${pathToDelete}`]);
-                        } catch(e) { console.error("Não foi possível remover imagem do storage:", e.message); }
+                            const imageUrlPath = new URL(memberToDelete.image_url).pathname;
+                            const pathParts = imageUrlPath.split('/avatars/');
+                            if (pathParts.length > 1) {
+                                const filePath = pathParts[1];
+                                await db.storage.from('avatars').remove([filePath]);
+                            }
+                        } catch (e) { console.error("Não foi possível remover imagem do storage:", e.message); }
                     }
                     
                     if (!document.getElementById('profile-view').classList.contains('hidden')) {
@@ -623,10 +626,15 @@
             await setupAuthUI(session);
             showDashboard();
             
-            if (membersSubscription) { membersSubscription.unsubscribe(); }
+            // Se a inscrição já existir, remove para evitar duplicatas
+            if (membersSubscription) {
+                membersSubscription.unsubscribe();
+            }
+            // Inscreve-se para mudanças na tabela de membros UMA VEZ
             membersSubscription = db.channel('public:members')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, payload => {
-                    if (document.getElementById('profile-view').classList.contains('hidden')) {
+                    // Só atualiza a lista se o usuário estiver na tela principal
+                    if (!document.getElementById('dashboard-view').classList.contains('hidden')) {
                         getMembers();
                     }
                 })
@@ -637,4 +645,3 @@
     </script>
 </body>
 </html>
-
