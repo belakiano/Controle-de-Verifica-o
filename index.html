@@ -408,13 +408,13 @@
             document.getElementById('dashboard-view').classList.remove('hidden');
             
             const membersGrid = document.getElementById('members-grid');
-            membersGrid.innerHTML = ''; // Limpa a grade para evitar que dados antigos apareçam
-            document.getElementById('loader').style.display = 'flex'; // Mostra o loader
+            membersGrid.innerHTML = ''; 
+            document.getElementById('loader').style.display = 'flex';
             
             getMembers();
             
             if (membersSubscription) { membersSubscription.unsubscribe(); }
-            membersSubscription = db.channel('public:members').on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, payload => getMembers()).subscribe();
+            membersSubscription = db.channel('public:members').on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => getMembers()).subscribe();
         }
 
         function showProfileView() {
@@ -476,18 +476,18 @@
             if(imageUrl) memberData.image_url = imageUrl;
 
             let error, memberId = id;
-            if (id) { // Edição
+            if (id) { 
                 ({ error } = await db.from('members').update(memberData).eq('id', id));
                 if (error) return console.error("Erro ao salvar integrante:", error.message);
                 memberModal.classList.add('hidden');
                 if (document.getElementById('dashboard-view').classList.contains('hidden')) {
                     renderProfile(memberId);
                 }
-            } else { // Adição
+            } else { 
                 const { data, error: insertError } = await db.from('members').insert(memberData).select().single();
                 if (insertError) return console.error("Erro ao salvar integrante:", insertError.message);
                 memberModal.classList.add('hidden');
-                showDashboard(); // Volta para o dashboard após adicionar
+                showDashboard(); 
             }
         });
 
@@ -503,8 +503,8 @@
 
                     if (memberToDelete && memberToDelete.image_url) {
                         try {
-                            const pathToDelete = memberToDelete.image_url.split('/avatars/')[1];
-                            if(pathToDelete) await db.storage.from('avatars').remove([pathToDelete]);
+                            const pathToDelete = new URL(memberToDelete.image_url).pathname.split('/public/avatars/')[1];
+                            if(pathToDelete) await db.storage.from('avatars').remove([`public/${pathToDelete}`]);
                         } catch(e) { console.error("Não foi possível remover imagem do storage:", e.message); }
                     }
                     
