@@ -470,16 +470,19 @@
             let error, memberId = id;
             if (id) { 
                 ({ error } = await db.from('members').update(memberData).eq('id', id));
-                if (error) return console.error("Erro ao salvar integrante:", error.message);
-                memberModal.classList.add('hidden');
-                if (document.getElementById('dashboard-view').classList.contains('hidden')) {
-                    renderProfile(memberId);
-                }
             } else { 
                 const { data, error: insertError } = await db.from('members').insert(memberData).select().single();
-                if (insertError) return console.error("Erro ao salvar integrante:", insertError.message);
-                memberModal.classList.add('hidden');
-                showDashboard(); 
+                error = insertError;
+                if(data) memberId = data.id;
+            }
+
+            if(error) return console.error("Erro ao salvar integrante:", error.message);
+            
+            memberModal.classList.add('hidden');
+            if (id && document.getElementById('dashboard-view').classList.contains('hidden')) {
+                renderProfile(memberId);
+            } else {
+                showDashboard();
             }
         });
 
@@ -496,10 +499,10 @@
                     if (memberToDelete && memberToDelete.image_url) {
                         try {
                             const imageUrlPath = new URL(memberToDelete.image_url).pathname;
-                            const pathParts = imageUrlPath.split('/avatars/');
+                            const pathParts = imageUrlPath.split('/public/avatars/');
                             if (pathParts.length > 1) {
                                 const filePath = pathParts[1];
-                                await db.storage.from('avatars').remove([filePath]);
+                                await db.storage.from('avatars').remove([`public/${filePath}`]);
                             }
                         } catch (e) { console.error("Não foi possível remover imagem do storage:", e.message); }
                     }
@@ -626,14 +629,11 @@
             await setupAuthUI(session);
             showDashboard();
             
-            // Se a inscrição já existir, remove para evitar duplicatas
             if (membersSubscription) {
                 membersSubscription.unsubscribe();
             }
-            // Inscreve-se para mudanças na tabela de membros UMA VEZ
             membersSubscription = db.channel('public:members')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, payload => {
-                    // Só atualiza a lista se o usuário estiver na tela principal
                     if (!document.getElementById('dashboard-view').classList.contains('hidden')) {
                         getMembers();
                     }
