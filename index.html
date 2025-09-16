@@ -467,22 +467,17 @@
             };
             if(imageUrl) memberData.image_url = imageUrl;
 
-            let error, memberId = id;
             if (id) { 
-                ({ error } = await db.from('members').update(memberData).eq('id', id));
+                const { error } = await db.from('members').update(memberData).eq('id', id);
+                if (error) return console.error("Erro ao salvar integrante:", error.message);
+                memberModal.classList.add('hidden');
+                if (document.getElementById('dashboard-view').classList.contains('hidden')) {
+                    renderProfile(id);
+                }
             } else { 
-                const { data, error: insertError } = await db.from('members').insert(memberData).select().single();
-                error = insertError;
-                if(data) memberId = data.id;
-            }
-
-            if(error) return console.error("Erro ao salvar integrante:", error.message);
-            
-            memberModal.classList.add('hidden');
-            if (id && document.getElementById('dashboard-view').classList.contains('hidden')) {
-                renderProfile(memberId);
-            } else {
-                showDashboard();
+                const { error } = await db.from('members').insert(memberData);
+                if (error) return console.error("Erro ao salvar integrante:", error.message);
+                memberModal.classList.add('hidden');
             }
         });
 
@@ -629,19 +624,17 @@
             await setupAuthUI(session);
             showDashboard();
             
-            if (membersSubscription) {
-                membersSubscription.unsubscribe();
-            }
+            if (membersSubscription) { membersSubscription.unsubscribe(); }
             membersSubscription = db.channel('public:members')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, payload => {
                     if (!document.getElementById('dashboard-view').classList.contains('hidden')) {
                         getMembers();
                     }
-                })
-                .subscribe();
+                }).subscribe();
         }
 
         initializeApp();
     </script>
 </body>
 </html>
+
