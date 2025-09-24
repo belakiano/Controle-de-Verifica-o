@@ -186,7 +186,13 @@
             '• Alto escalão': ['『CMD』Comandante', '『S-CMD』Sub-Comandante', '『CEL』Coronel'],
             '• Oficial': ['『TEN-C』Tenente Coronel', '『MAJ』Major', '『CAP』Capitão', '『1 TEN』1° Tenente', '『2 TEN』2° Tenente'],
             '• Aluno Oficial': ['『ASP』Aspirante a Oficial', '『CDT』Cadete', '『AOF』Aluno Oficial'],
-            '• Praça': ['『S-TEN』Subtenente', '『1 SGT』1° Sargento', '『2 SGT』2° Sargento', '『3 SGT』3° Sargento', '『CB』Cabo', '『1 SD』Soldado 1º Classe', '『2 SD』Soldado 2º Classe', '『REC』Recruta']
+            '• Praça': ['『S-TEN』Subtenente', '『1 SGT』1° Sargento', '『2 SGT』2° Sargento', '『3 SGT』3° Sargento', '『CB』Cabo', '『1 SD』Soldado 1º Classe', '『2 SD』Soldado 2º Classe', '『REC』Recruta'],
+            '• Diretoria Médica': ['Diretor(a) Geral', 'Diretor(a) Adjunto(a)', 'Diretor(a) Cirúrgico do Trauma', 'Diretor(a) Clínico(a) Emergencista', 'Diretor(a) de Enfermagem Urgência'],
+            '• Supervisão Médica': ['Supervisor(a) Chefe Cirúrgico do Trauma', 'Supervisor(a) Chefe Clínico(a) Emergencista', 'Supervisor(a) Chefe de Enfermagem em Urgência e Emergência'],
+            '• Corpo Clínico Sênior': ['Médico(a) Residente Sênior', 'Cirurgiã(o) do Trauma Sênior', 'Médico(a) Emergencista Sênior', 'Enfermeiro(a) de Urgência Emergência Sênior'],
+            '• Corpo Clínico Pleno': ['Cirurgiã(o) do Trauma Pleno', 'Médico(a) Emergencista Pleno', 'Enfermeiro(a) de Urgência e Emergência Pleno'],
+            '• Corpo Clínico Júnior': ['Médico Residente Júnior', 'Cirurgiã(o) do Trauma Júnior', 'Médico(a) Emergencista Júnior', 'Enfermeiro(a) de Urgência e Emergência Júnior'],
+            '• Equipe de Apoio': ['Técnico de Enfermagem', 'Estagiário', 'Médico Temporário']
         };
 
         function populateRankSelect(selectElement, selectedValue = '') {
@@ -467,19 +473,17 @@
             };
             if(imageUrl) memberData.image_url = imageUrl;
 
-            let error, memberId = id;
             if (id) { 
-                ({ error } = await db.from('members').update(memberData).eq('id', id));
+                const { error } = await db.from('members').update(memberData).eq('id', id);
                 if (error) return console.error("Erro ao salvar integrante:", error.message);
                 memberModal.classList.add('hidden');
                 if (document.getElementById('dashboard-view').classList.contains('hidden')) {
-                    renderProfile(memberId);
+                    renderProfile(id);
                 }
             } else { 
-                const { data, error: insertError } = await db.from('members').insert(memberData).select().single();
-                if (insertError) return console.error("Erro ao salvar integrante:", insertError.message);
+                const { error } = await db.from('members').insert(memberData);
+                if (error) return console.error("Erro ao salvar integrante:", error.message);
                 memberModal.classList.add('hidden');
-                showDashboard(); 
             }
         });
 
@@ -498,7 +502,7 @@
                             const imageUrlPath = new URL(memberToDelete.image_url).pathname;
                             const pathParts = imageUrlPath.split('/avatars/');
                             if (pathParts.length > 1) {
-                                const filePath = pathParts[1];
+                                const filePath = `public/${pathParts[1]}`;
                                 await db.storage.from('avatars').remove([filePath]);
                             }
                         } catch (e) { console.error("Não foi possível remover imagem do storage:", e.message); }
@@ -622,8 +626,19 @@
         // --- Inicialização ---
         async function initializeApp() {
             lucide.createIcons();
-            const { data: { session } } = await db.auth.getSession();
-            await setupAuthUI(session);
+            
+            // Força o logout ao carregar para garantir um estado limpo
+            await db.auth.signOut();
+
+            // Configura o listener de autenticação para reagir a futuros logins
+            db.auth.onAuthStateChange((event, session) => {
+                setupAuthUI(session);
+            });
+
+            // Configura a UI inicial (estado deslogado)
+            await setupAuthUI(null);
+            
+            // Mostra o dashboard (visão pública)
             showDashboard();
             
             // Se a inscrição já existir, remove para evitar duplicatas
