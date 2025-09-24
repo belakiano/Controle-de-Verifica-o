@@ -500,9 +500,9 @@
                     if (memberToDelete && memberToDelete.image_url) {
                         try {
                             const imageUrlPath = new URL(memberToDelete.image_url).pathname;
-                            const pathParts = imageUrlPath.split('/avatars/');
+                            const pathParts = imageUrlPath.split('/public/avatars/');
                             if (pathParts.length > 1) {
-                                const filePath = `public/${pathParts[1]}`;
+                                const filePath = pathParts[1];
                                 await db.storage.from('avatars').remove([filePath]);
                             }
                         } catch (e) { console.error("Não foi possível remover imagem do storage:", e.message); }
@@ -626,17 +626,30 @@
         // --- Inicialização ---
         async function initializeApp() {
             lucide.createIcons();
-            const { data: { session } } = await db.auth.getSession();
-            await setupAuthUI(session);
+
+            // Desloga o usuário ao carregar a página para garantir um estado limpo
+            await db.auth.signOut();
+
+            // Configura o listener para futuras mudanças de auth (login)
+            db.auth.onAuthStateChange((event, session) => {
+                setupAuthUI(session);
+            });
+            
+            // Configura a UI inicial (estado de deslogado)
+            await setupAuthUI(null);
+
+            // Mostra o dashboard (visão pública)
             showDashboard();
             
+            // Inscreve-se para mudanças na tabela de membros UMA VEZ
             if (membersSubscription) { membersSubscription.unsubscribe(); }
             membersSubscription = db.channel('public:members')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, payload => {
                     if (!document.getElementById('dashboard-view').classList.contains('hidden')) {
                         getMembers();
                     }
-                }).subscribe();
+                })
+                .subscribe();
         }
 
         initializeApp();
