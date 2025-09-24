@@ -639,16 +639,16 @@
         async function initializeApp() {
             lucide.createIcons();
 
-            // 1. Inicia o listener de autenticação
+            // 1. Inicia o listener de autenticação para reagir a futuros logins/logouts
             db.auth.onAuthStateChange((event, session) => {
                 setupAuthUI(session);
             });
 
-            // 2. Busca a sessão ATUAL para saber o estado inicial
+            // 2. Busca a sessão ATUAL para saber o estado inicial e monta a UI
             const { data: { session } } = await db.auth.getSession();
-            await setupAuthUI(session); // Monta a UI com o estado atual
+            await setupAuthUI(session);
             
-            // 3. Mostra o dashboard
+            // 3. Mostra o dashboard (visão pública)
             showDashboard();
             
             // 4. Inscreve-se para mudanças na tabela de membros UMA VEZ
@@ -668,4 +668,3 @@
     </script>
 </body>
 </html>
-
